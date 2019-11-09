@@ -1,0 +1,121 @@
+<html>
+<head>
+<script src="midi-parser-js-4.0.4/src/main.js"></script>
+<script>
+const TEMPO_FIELD = 81
+var timer = undefined;
+var midi = undefined;
+var bpm = 120;
+var pixelsPerSecond = 100.; // Scrolling speed
+var startTime = 0;
+
+/**
+ * Loads the MIDI file and plots the events as DIVs.
+ */
+window.onload = function(){
+  var source = document.getElementById('filereader');
+  MidiParser.parse( source, function(obj){
+    midi = obj;
+    // Find tempo information in track 0 (meta-info track)
+    for (event of midi.track[0].event) {
+      if (event.metaType == TEMPO_FIELD) {
+        // Tempo is given as duration of one note in microseconds
+        bpm = 60 * 1000000 / event.data;
+        console.log(bpm);
+      }
+    }
+    plot_events(midi.track);
+  });
+};
+
+/**
+ * (re-)Start the game.
+ */
+function start_game() {
+  startTime = new Date().getTime();
+  // Update the position of the event DIVs every 10ms.
+  timer = setInterval(scroll_events, 10);
+}
+
+/**
+ * Stop the game.
+ */
+function stop_game() {
+  clearInterval(timer);
+}
+
+/**
+ * Create DIVs for all MIDI events in all tracks.
+ */
+function plot_events(tracks) {
+  let beatsPerSecond = bpm / 60;
+  let pixelMultiplyer = pixelsPerSecond / (midi.timeDivision * beatsPerSecond);
+  let output = document.getElementById("output");
+
+  // Skip the first MIDI tracks, which holds metadata.
+  for (track_number=1; track_number<tracks.length; track_number++) {
+    var events = tracks[track_number].event;
+    var time = 0;
+
+    // Events are organized in pairs: a note-on and a note-off event.
+    for (i=0; i<events.length-1; i+=2) {
+      time += events[i].deltaTime;
+      let box = document.createElement("div");
+      box.style.position = 'absolute'
+      box.initialPosition = time * pixelMultiplyer;
+      box.style.top = box.initialPosition;
+      //box.style.height = events[i + 1].deltaTime * pixelMultiplyer;
+      box.className = "track" + track_number;
+      output.appendChild(box);
+      time += events[i + 1].deltaTime;
+    }
+  }
+}
+
+/**
+ * Scroll all the MIDI event DIVs.
+ */
+function scroll_events() {
+  let output = document.getElementById("output");
+  let now = new Date().getTime();
+  let secondsElapsed = (now - startTime) / 1000;
+  for (element of output.childNodes) {
+    element.style.top = element.initialPosition - pixelsPerSecond * secondsElapsed;
+  }
+}
+</script>
+
+<style>
+  .track1 {
+    margin-top: 200px;
+    background-color: blue;
+    width: 100px;
+    left: 100px;
+    height: 5px;
+  }
+  .track2 {
+    margin-top: 200px;
+    background-color: red;
+    width: 100px;
+    left: 250px;
+    height: 5px;
+  }
+  #hitpoint {
+    position:relative;
+    top: 50px;
+    z-index: 10000;
+  }
+</style>
+
+</head>
+<body width="100%">
+  <div style="position:absolute; width:200px; right:10px">
+    <input type="file" id="filereader"/>
+    <button onclick="start_game()">START</button>
+    <button onclick="stop_game()">STOP</button>
+  </div>
+  <div
+  <hr id="hitpoint"/>
+  <div id="output"></div>
+<body>
+</html>

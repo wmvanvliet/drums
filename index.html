@@ -6,7 +6,7 @@ const TEMPO_FIELD = 81
 var timer = undefined;
 var midi = undefined;
 var bpm = 120;
-var pixelsPerSecond = 100.; // Scrolling speed
+var pixelsPerSecond = 400.; // Scrolling speed
 var startTime = 0;
 
 /**
@@ -32,9 +32,14 @@ window.onload = function(){
  * (re-)Start the game.
  */
 function start_game() {
+  music = document.getElementById("music")
+  music.currentTime = 0;
+
   startTime = new Date().getTime();
   // Update the position of the event DIVs every 10ms.
   timer = setInterval(scroll_events, 10);
+  // Start the music
+  music.play();
 }
 
 /**
@@ -42,6 +47,7 @@ function start_game() {
  */
 function stop_game() {
   clearInterval(timer);
+  document.getElementById("music").pause();
 }
 
 /**
@@ -70,6 +76,14 @@ function plot_events(tracks) {
       time += events[i + 1].deltaTime;
     }
   }
+
+  // Add the beat bars
+  total_beats = (time / midi.timeDivision) * beatsPerSecond;
+  beat_time = 0;
+  for (beat=0; beat<total_beats; beat++) {
+      let box = document.createElement("div");
+
+  }
 }
 
 /**
@@ -87,14 +101,14 @@ function scroll_events() {
 
 <style>
   .track1 {
-    margin-top: 200px;
+    margin-top: 50px;
     background-color: blue;
     width: 100px;
     left: 100px;
     height: 5px;
   }
   .track2 {
-    margin-top: 200px;
+    margin-top: 50px;
     background-color: red;
     width: 100px;
     left: 250px;
@@ -109,12 +123,12 @@ function scroll_events() {
 
 </head>
 <body width="100%">
+  <audio src="sm2000.mp3" type="audio/mpeg" id="music" preload="auto"></audio>
   <div style="position:absolute; width:200px; right:10px">
     <input type="file" id="filereader"/>
     <button onclick="start_game()">START</button>
     <button onclick="stop_game()">STOP</button>
   </div>
-  <div
   <hr id="hitpoint"/>
   <div id="output"></div>
 <body>

@@ -8,6 +8,7 @@ var midi = undefined;
 var bpm = 120;
 var pixelsPerSecond = 400.; // Scrolling speed
 var startTime = 0;
+var running = false;
 
 /**
  * Loads the MIDI file and plots the events as DIVs.
@@ -34,11 +35,9 @@ window.onload = function(){
 function start_game() {
   music = document.getElementById("music")
   music.currentTime = 0;
-
+  running = true;
   startTime = new Date().getTime();
-  // Update the position of the event DIVs every 10ms.
-  timer = setInterval(scroll_events, 10);
-  // Start the music
+  requestAnimationFrame(scroll_events);
   music.play();
 }
 
@@ -46,8 +45,11 @@ function start_game() {
  * Stop the game.
  */
 function stop_game() {
-  clearInterval(timer);
+  running = false;
   document.getElementById("music").pause();
+  music.currentTime = 0;
+  let output = document.getElementById("output");
+  output.style.top = 0;
 }
 
 /**
@@ -65,11 +67,11 @@ function plot_events(tracks) {
 
     // Events are organized in pairs: a note-on and a note-off event.
     for (i=0; i<events.length-1; i+=2) {
+      console.log(events[i]);
       time += events[i].deltaTime;
       let box = document.createElement("div");
-      box.style.position = 'absolute'
-      box.initialPosition = time * pixelMultiplyer;
-      box.style.top = box.initialPosition;
+      console.log(time, time * pixelMultiplyer);
+      box.style.top = time * pixelMultiplyer;
       //box.style.height = events[i + 1].deltaTime * pixelMultiplyer;
       box.className = "track" + track_number;
       output.appendChild(box);
@@ -81,8 +83,11 @@ function plot_events(tracks) {
   total_beats = (time / midi.timeDivision) * beatsPerSecond;
   beat_time = 0;
   for (beat=0; beat<total_beats; beat++) {
-      let box = document.createElement("div");
-
+    let box = document.createElement("div");
+    box.className = "beat";
+    box.style.top = beat_time * pixelMultiplyer;
+    output.appendChild(box);
+    beat_time += midi.timeDivision;
   }
 }
 
@@ -93,31 +98,53 @@ function scroll_events() {
   let output = document.getElementById("output");
   let now = new Date().getTime();
   let secondsElapsed = (now - startTime) / 1000;
+  /*
   for (element of output.childNodes) {
     element.style.top = element.initialPosition - pixelsPerSecond * secondsElapsed;
+  }
+  */
+  output.style.top = -pixelsPerSecond * secondsElapsed;
+  if (running) {
+    requestAnimationFrame(scroll_events);
   }
 }
 </script>
 
 <style>
+  body {
+    background-color: black;
+  }
   .track1 {
+    position: absolute;
     margin-top: 50px;
     background-color: blue;
     width: 100px;
     left: 100px;
-    height: 5px;
+    height: 15px;
   }
   .track2 {
+    position: absolute;
     margin-top: 50px;
     background-color: red;
     width: 100px;
     left: 250px;
-    height: 5px;
+    height: 15px;
+  }
+  .beat {
+    position: absolute;
+    width: 100%;
+    border-top: 1px solid #aaa;
+    margin-top: 50px;
   }
   #hitpoint {
     position:relative;
-    top: 50px;
+    top: 42px;
     z-index: 10000;
+  }
+  #output {
+    position: absolute;
+    top: 0px;
+    width: 100%;
   }
 </style>
 

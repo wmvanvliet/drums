@@ -5,8 +5,9 @@
 const TEMPO_FIELD = 81
 var timer = undefined;
 var midi = undefined;
-var bpm = 120;
-var pixelsPerSecond = 400.; // Scrolling speed
+var bpm = [];
+var tempo_change_times = [];
+var pixelsPerSecond = 100.; // Scrolling speed
 var startTime = 0;
 var running = false;
 
@@ -18,10 +19,13 @@ window.onload = function(){
   MidiParser.parse( source, function(obj){
     midi = obj;
     // Find tempo information in track 0 (meta-info track)
+    let meta_time = 0;
     for (event of midi.track[0].event) {
+      meta_time += event.deltaTime;
       if (event.metaType == TEMPO_FIELD) {
         // Tempo is given as duration of one note in microseconds
-        bpm = 60 * 1000000 / event.data;
+        bpm.push(60 * 1000000 / event.data);
+        tempo_change_times.push(meta_time);
         console.log(bpm);
       }
     }
@@ -52,42 +56,57 @@ function stop_game() {
   output.style.top = 0;
 }
 
+function get_pixelMultiplyer(time) {
+  let i = 0;
+  while (i < (tempo_change_times.length-1) && tempo_change_times[i] < time) {
+    i++;
+  }
+  let beatsPerSecond = bpm[i] / 60;
+  console.log(i, bpm[i]);
+  return pixelsPerSecond / (midi.timeDivision * beatsPerSecond);
+}
+
 /**
  * Create DIVs for all MIDI events in all tracks.
  */
 function plot_events(tracks) {
-  let beatsPerSecond = bpm / 60;
-  let pixelMultiplyer = pixelsPerSecond / (midi.timeDivision * beatsPerSecond);
   let output = document.getElementById("output");
 
   // Skip the first MIDI tracks, which holds metadata.
   for (track_number=1; track_number<tracks.length; track_number++) {
     var events = tracks[track_number].event;
     var time = 0;
+    let top = 0 ;
 
     // Events are organized in pairs: a note-on and a note-off event.
     for (i=0; i<events.length-1; i+=2) {
-      console.log(events[i]);
+      //console.log(events[i]);
       time += events[i].deltaTime;
+      top += events[i].deltaTime * get_pixelMultiplyer(time);
       let box = document.createElement("div");
-      console.log(time, time * pixelMultiplyer);
-      box.style.top = time * pixelMultiplyer;
+      //console.log(time, time * pixelMultiplyer);
+      box.style.top = top;
       //box.style.height = events[i + 1].deltaTime * pixelMultiplyer;
       box.className = "track" + track_number;
       output.appendChild(box);
       time += events[i + 1].deltaTime;
+      top += events[i + 1].deltaTime * get_pixelMultiplyer(time);
     }
   }
 
   // Add the beat bars
-  total_beats = (time / midi.timeDivision) * beatsPerSecond;
-  beat_time = 0;
+  total_beats = (time / midi.timeDivision) * bpm[0] / 60;
+  let beat_time = 0;
+  let top = 0;
   for (beat=0; beat<total_beats; beat++) {
     let box = document.createElement("div");
     box.className = "beat";
-    box.style.top = beat_time * pixelMultiplyer;
+    let pixelMultiplyer = get_pixelMultiplyer(beat_time);
+    box.style.top = top;
     output.appendChild(box);
-    beat_time += midi.timeDivision;
+    beat_time += 4 * midi.timeDivision;
+    top += 4 * midi.timeDivision * pixelMultiplyer;
+    console.log(top);
   }
 }
 
@@ -134,7 +153,7 @@ function scroll_events() {
     position: absolute;
     width: 100%;
     border-top: 1px solid #aaa;
-    margin-top: 50px;
+    margin-top: 225px;
   }
   #hitpoint {
     position:relative;
@@ -150,7 +169,7 @@ function scroll_events() {
 
 </head>
 <body width="100%">
-  <audio src="sm2000.mp3" type="audio/mpeg" id="music" preload="auto"></audio>
+  <audio src="mm.mp3" type="audio/mpeg" id="music" preload="auto"></audio>
   <div style="position:absolute; width:200px; right:10px">
     <input type="file" id="filereader"/>
     <button onclick="start_game()">START</button>

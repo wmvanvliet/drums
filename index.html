@@ -26,7 +26,6 @@ window.onload = function(){
         // Tempo is given as duration of one note in microseconds
         bpm.push(60 * 1000000 / event.data);
         tempo_change_times.push(meta_time);
-        console.log(bpm);
       }
     }
     plot_events(midi.track);
@@ -58,11 +57,11 @@ function stop_game() {
 
 function get_pixelMultiplyer(time) {
   let i = 0;
-  while (i < (tempo_change_times.length-1) && tempo_change_times[i] < time) {
+  while (i < (tempo_change_times.length-1) && tempo_change_times[i+1] <= time) {
     i++;
   }
   let beatsPerSecond = bpm[i] / 60;
-  console.log(i, bpm[i]);
+  console.log(tempo_change_times, time, bpm[i]);
   return pixelsPerSecond / (midi.timeDivision * beatsPerSecond);
 }
 
@@ -80,17 +79,16 @@ function plot_events(tracks) {
 
     // Events are organized in pairs: a note-on and a note-off event.
     for (i=0; i<events.length-1; i+=2) {
-      //console.log(events[i]);
-      time += events[i].deltaTime;
       top += events[i].deltaTime * get_pixelMultiplyer(time);
+      time += events[i].deltaTime;
       let box = document.createElement("div");
-      //console.log(time, time * pixelMultiplyer);
+      console.log(top);
       box.style.top = top;
       //box.style.height = events[i + 1].deltaTime * pixelMultiplyer;
       box.className = "track" + track_number;
       output.appendChild(box);
-      time += events[i + 1].deltaTime;
       top += events[i + 1].deltaTime * get_pixelMultiplyer(time);
+      time += events[i + 1].deltaTime;
     }
   }
 
@@ -106,7 +104,6 @@ function plot_events(tracks) {
     output.appendChild(box);
     beat_time += 4 * midi.timeDivision;
     top += 4 * midi.timeDivision * pixelMultiplyer;
-    console.log(top);
   }
 }
 
@@ -135,7 +132,7 @@ function scroll_events() {
   }
   .track1 {
     position: absolute;
-    margin-top: 50px;
+    margin-top: 225px;
     background-color: blue;
     width: 100px;
     left: 100px;
@@ -143,7 +140,7 @@ function scroll_events() {
   }
   .track2 {
     position: absolute;
-    margin-top: 50px;
+    margin-top: 225px;
     background-color: red;
     width: 100px;
     left: 250px;

@@ -61,8 +61,35 @@ function get_pixelMultiplyer(time) {
     i++;
   }
   let beatsPerSecond = bpm[i] / 60;
-  console.log(tempo_change_times, time, bpm[i]);
+  //console.log(tempo_change_times, time, bpm[i]);
   return pixelsPerSecond / (midi.timeDivision * beatsPerSecond);
+}
+
+function timedelta_to_pixel_offset(t0, t_delta) {
+  let t1 = t0 + t_delta;
+
+  let i = 0;
+  while (i < (tempo_change_times.length-1) && tempo_change_times[i+1] < t0) {
+    i++;
+  }
+  let j = i;
+  while (j < (tempo_change_times.length-1) && tempo_change_times[j+1] < t1) {
+    j++;
+  }
+  //let bps_t0 = bpm[i] / 60;
+  //let bps_t1 = bpm[j] / 60;
+  let t_i = t0;
+  let pixels = 0;
+  for(k=i; k<j; k++) {
+    console.log(k+1, t_i, tempo_change_times[k+1] - t_i);
+    pixels += (tempo_change_times[k+1] - t_i) * pixelsPerSecond / (midi.timeDivision * (bpm[k+1] / 60));
+    t_i = tempo_change_times[k+1];
+    console.log(pixels, t_i);
+  }
+  pixels += (t1 - t_i) * pixelsPerSecond / (midi.timeDivision * (bpm[k] / 60));
+
+  console.log(t0, t_delta, i, j, pixels);
+  return pixels;
 }
 
 /**
@@ -79,15 +106,17 @@ function plot_events(tracks) {
 
     // Events are organized in pairs: a note-on and a note-off event.
     for (i=0; i<events.length-1; i+=2) {
-      top += events[i].deltaTime * get_pixelMultiplyer(time);
+      //top += events[i].deltaTime * get_pixelMultiplyer(time);
+      top += timedelta_to_pixel_offset(time, events[i].deltaTime);
       time += events[i].deltaTime;
       let box = document.createElement("div");
-      console.log(top);
+      //console.log(top);
       box.style.top = top;
       //box.style.height = events[i + 1].deltaTime * pixelMultiplyer;
       box.className = "track" + track_number;
       output.appendChild(box);
-      top += events[i + 1].deltaTime * get_pixelMultiplyer(time);
+      //top += events[i + 1].deltaTime * get_pixelMultiplyer(time);
+      top += timedelta_to_pixel_offset(time, events[i + 1].deltaTime);
       time += events[i + 1].deltaTime;
     }
   }
@@ -99,11 +128,12 @@ function plot_events(tracks) {
   for (beat=0; beat<total_beats; beat++) {
     let box = document.createElement("div");
     box.className = "beat";
-    let pixelMultiplyer = get_pixelMultiplyer(beat_time);
+    //let pixelMultiplyer = get_pixelMultiplyer(beat_time);
     box.style.top = top;
     output.appendChild(box);
+    //top += 4 * midi.timeDivision * pixelMultiplyer;
+    top += timedelta_to_pixel_offset(beat_time, 4 * midi.timeDivision);
     beat_time += 4 * midi.timeDivision;
-    top += 4 * midi.timeDivision * pixelMultiplyer;
   }
 }
 

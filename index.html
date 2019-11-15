@@ -2,11 +2,11 @@
 <head>
 <script src="midi-parser-js-4.0.4/src/main.js"></script>
 <script>
-const TEMPO_FIELD = 81
+const NOTE_ON = 9;
+const TEMPO_FIELD = 81;
+const BAR = 999;
 var timer = undefined;
 var midi = undefined;
-var bpm = [];
-var tempo_change_times = [];
 var pixelsPerSecond = 100.; // Scrolling speed
 var startTime = 0;
 var running = false;
@@ -18,19 +18,105 @@ window.onload = function(){
   var source = document.getElementById('filereader');
   MidiParser.parse( source, function(obj){
     midi = obj;
-    // Find tempo information in track 0 (meta-info track)
-    let meta_time = 0;
-    for (event of midi.track[0].event) {
-      meta_time += event.deltaTime;
-      if (event.metaType == TEMPO_FIELD) {
-        // Tempo is given as duration of one note in microseconds
-        bpm.push(60 * 1000000 / event.data);
-        tempo_change_times.push(meta_time);
+    add_timing_info(midi);
+
+    // Loop through all the events and draw things
+    while (true) {
+      let e = next_event(midi);
+      if(e == undefined) {
+        break; // No more events, we're done!
+      } else {
+        handle_event(e); // Does the drawing
       }
     }
-    plot_events(midi.track);
   });
-};
+}
+
+/**
+ * Loops through all the events in all the tracks and converts the deltaTime to
+ * absolute time.
+ */
+function add_timing_info(midi) {
+  for (t of midi.track) {
+    let time = 0;
+    for (e of t.event) {
+      time += e.deltaTime;
+      e.time = time;
+    }
+  }
+}
+
+/**
+ * Finds and returns the next MIDI event, irregardless of the track it is on.
+ * Also returns bar events every 4 beats. Returns undefined when all events
+ * have been returned.
+ */
+var next_bar_time = 0;
+function next_event(midi) {
+  // Find the track with the closest event
+  next_track = undefined;
+  for (t of midi.track) {
+    if (t.event.length == 0) {
+      continue;
+    }
+    if (next_track == undefined || t.event[0].time < next_track.event[0].time) {
+      next_track = t;
+    }
+  }
+
+  if (next_track == undefined) {
+    // No more events
+    return undefined;
+  }
+
+  // Perhaps we need a bar event first?
+  console.log("Next bar at", next_bar_time);
+  if (next_bar_time < next_track.event[0].time) {
+    e = {type: BAR, time: next_bar_time};
+    next_bar_time += 4 * midi.timeDivision;
+    return e;
+  } else {
+    return next_track.event.shift();
+  }
+}
+
+/**
+ * Examines a MIDI event and decides what to do with it.
+ * Adds a box or bar, or updates the tempo.
+ */
+var time = 0; // Global clock
+var bpm = 120; // Current tempo (beats per minute)
+var pixel_offset = 0; // Current location to draw to (in pixels)
+function handle_event(e) {
+  // Advance the clock
+  let deltaTime = e.time - time;
+  pixel_offset += deltaTime * pixelsPerSecond / (midi.timeDivision * (bpm / 60));
+  time = e.time;
+
+  //console.log(time, pixel_offset, e);
+
+  if (e.metaType == TEMPO_FIELD) {
+    // Tempo is given as duration of one note in microseconds
+    bpm = 60 * 1000000 / e.data;
+    console.log("New tempo set", bpm);
+  } else if (e.type == BAR) {
+    console.log("Drawing bar at", e.time, pixel_offset);
+    // Add a horizontal line to indicate a new bar
+    let output = document.getElementById("output");
+    let box = document.createElement("div");
+    box.className = "beat";
+    box.style.top = pixel_offset;
+    output.appendChild(box);
+  } else if (e.type == NOTE_ON) {
+    console.log("Drawing note at", e.time, pixel_offset);
+    // Add a box to indicate a note
+    let output = document.getElementById("output");
+    let box = document.createElement("div");
+    box.style.top = pixel_offset;
+    box.className = "track" + (e.channel + 1);
+    output.appendChild(box);
+  }
+}
 
 /**
  * (re-)Start the game.
@@ -55,88 +141,6 @@ function stop_game() {
   output.style.top = 0;
 }
 
-function get_pixelMultiplyer(time) {
-  let i = 0;
-  while (i < (tempo_change_times.length-1) && tempo_change_times[i+1] <= time) {
-    i++;
-  }
-  let beatsPerSecond = bpm[i] / 60;
-  //console.log(tempo_change_times, time, bpm[i]);
-  return pixelsPerSecond / (midi.timeDivision * beatsPerSecond);
-}
-
-function timedelta_to_pixel_offset(t0, t_delta) {
-  let t1 = t0 + t_delta;
-
-  let i = 0;
-  while (i < (tempo_change_times.length-1) && tempo_change_times[i+1] < t0) {
-    i++;
-  }
-  let j = i;
-  while (j < (tempo_change_times.length-1) && tempo_change_times[j+1] < t1) {
-    j++;
-  }
-  //let bps_t0 = bpm[i] / 60;
-  //let bps_t1 = bpm[j] / 60;
-  let t_i = t0;
-  let pixels = 0;
-  for(k=i; k<j; k++) {
-    console.log(k+1, t_i, tempo_change_times[k+1] - t_i);
-    pixels += (tempo_change_times[k+1] - t_i) * pixelsPerSecond / (midi.timeDivision * (bpm[k+1] / 60));
-    t_i = tempo_change_times[k+1];
-    console.log(pixels, t_i);
-  }
-  pixels += (t1 - t_i) * pixelsPerSecond / (midi.timeDivision * (bpm[k] / 60));
-
-  console.log(t0, t_delta, i, j, pixels);
-  return pixels;
-}
-
-/**
- * Create DIVs for all MIDI events in all tracks.
- */
-function plot_events(tracks) {
-  let output = document.getElementById("output");
-
-  // Skip the first MIDI tracks, which holds metadata.
-  for (track_number=1; track_number<tracks.length; track_number++) {
-    var events = tracks[track_number].event;
-    var time = 0;
-    let top = 0 ;
-
-    // Events are organized in pairs: a note-on and a note-off event.
-    for (i=0; i<events.length-1; i+=2) {
-      //top += events[i].deltaTime * get_pixelMultiplyer(time);
-      top += timedelta_to_pixel_offset(time, events[i].deltaTime);
-      time += events[i].deltaTime;
-      let box = document.createElement("div");
-      //console.log(top);
-      box.style.top = top;
-      //box.style.height = events[i + 1].deltaTime * pixelMultiplyer;
-      box.className = "track" + track_number;
-      output.appendChild(box);
-      //top += events[i + 1].deltaTime * get_pixelMultiplyer(time);
-      top += timedelta_to_pixel_offset(time, events[i + 1].deltaTime);
-      time += events[i + 1].deltaTime;
-    }
-  }
-
-  // Add the beat bars
-  total_beats = (time / midi.timeDivision) * bpm[0] / 60;
-  let beat_time = 0;
-  let top = 0;
-  for (beat=0; beat<total_beats; beat++) {
-    let box = document.createElement("div");
-    box.className = "beat";
-    //let pixelMultiplyer = get_pixelMultiplyer(beat_time);
-    box.style.top = top;
-    output.appendChild(box);
-    //top += 4 * midi.timeDivision * pixelMultiplyer;
-    top += timedelta_to_pixel_offset(beat_time, 4 * midi.timeDivision);
-    beat_time += 4 * midi.timeDivision;
-  }
-}
-
 /**
  * Scroll all the MIDI event DIVs.
  */
@@ -144,11 +148,6 @@ function scroll_events() {
   let output = document.getElementById("output");
   let now = new Date().getTime();
   let secondsElapsed = (now - startTime) / 1000;
-  /*
-  for (element of output.childNodes) {
-    element.style.top = element.initialPosition - pixelsPerSecond * secondsElapsed;
-  }
-  */
   output.style.top = -pixelsPerSecond * secondsElapsed;
   if (running) {
     requestAnimationFrame(scroll_events);
@@ -162,7 +161,7 @@ function scroll_events() {
   }
   .track1 {
     position: absolute;
-    margin-top: 225px;
+    margin-top: 70px;
     background-color: blue;
     width: 100px;
     left: 100px;
@@ -170,7 +169,7 @@ function scroll_events() {
   }
   .track2 {
     position: absolute;
-    margin-top: 225px;
+    margin-top: 70px;
     background-color: red;
     width: 100px;
     left: 250px;
@@ -180,7 +179,7 @@ function scroll_events() {
     position: absolute;
     width: 100%;
     border-top: 1px solid #aaa;
-    margin-top: 225px;
+    margin-top: 70px;
   }
   #hitpoint {
     position:relative;

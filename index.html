@@ -34,14 +34,16 @@ window.onload = function(){
 
 /**
  * Loops through all the events in all the tracks and converts the deltaTime to
- * absolute time.
+ * absolute time and adds track number info.
  */
 function add_timing_info(midi) {
-  for (t of midi.track) {
+  for (i = 0; i < midi.track.length; i++) {
+    let t = midi.track[i];
     let time = 0;
     for (e of t.event) {
       time += e.deltaTime;
       e.time = time;
+      e.track = i + 1;
     }
   }
 }
@@ -113,7 +115,7 @@ function handle_event(e) {
     let output = document.getElementById("output");
     let box = document.createElement("div");
     box.style.top = pixel_offset;
-    box.className = "track" + (e.channel + 1);
+    box.className = "note track" + e.track;
     output.appendChild(box);
   }
 }
@@ -159,27 +161,26 @@ function scroll_events() {
   body {
     background-color: black;
   }
-  .track1 {
+  .note {
     position: absolute;
-    margin-top: 70px;
-    background-color: blue;
-    width: 100px;
-    left: 100px;
+    margin-top: 75px;
+    background-color: white;
+    width: 8.25%;
+    left: 6.25%;
     height: 15px;
   }
-  .track2 {
-    position: absolute;
-    margin-top: 70px;
-    background-color: red;
-    width: 100px;
-    left: 250px;
-    height: 15px;
-  }
+  .track2 { left:  6.25%; background-color: blue; }
+  .track3 { left: 18.75%; background-color: red; }
+  .track4 { left: 31.25%; background-color: green; }
+  .track5 { left: 43.75%; background-color: cyan; }
+  .track6 { left: 56.25%; background-color: orange; }
+  .track7 { left: 68.75%; background-color: magenta; }
+  .track8 { left: 81.25%; background-color: white; }
   .beat {
     position: absolute;
     width: 100%;
     border-top: 1px solid #aaa;
-    margin-top: 70px;
+    margin-top: 75px;
   }
   #hitpoint {
     position:relative;
@@ -195,7 +196,7 @@ function scroll_events() {
 
 </head>
 <body width="100%">
-  <audio src="mm.mp3" type="audio/mpeg" id="music" preload="auto"></audio>
+  <audio src="sm.mp3" type="audio/mpeg" id="music" preload="auto"></audio>
   <div style="position:absolute; width:200px; right:10px">
     <input type="file" id="filereader"/>
     <button onclick="start_game()">START</button>

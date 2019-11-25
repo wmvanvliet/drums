@@ -7,6 +7,8 @@ const TEMPO_FIELD = 81;
 const BAR = 999;
 var timer = undefined;
 var midi = undefined;
+var music = undefined;
+var context = undefined;
 var pixelsPerSecond = 100.; // Scrolling speed
 var startTime = 0;
 var running = false;
@@ -15,21 +17,55 @@ var running = false;
  * Loads the MIDI file and plots the events as DIVs.
  */
 window.onload = function(){
-  var source = document.getElementById('filereader');
-  MidiParser.parse( source, function(obj){
-    midi = obj;
-    add_timing_info(midi);
+  // Handle AUDIO file upload
+  let audioSource = document.getElementById('audiofile');
+  audioSource.addEventListener('change', read_audio, false);
 
-    // Loop through all the events and draw things
-    while (true) {
-      let e = next_event(midi);
-      if(e == undefined) {
-        break; // No more events, we're done!
-      } else {
-        handle_event(e); // Does the drawing
-      }
+  // Handle MIDI file upload
+  let midiSource = document.getElementById('midifile');
+  MidiParser.parse(midiSource, read_midi);
+}
+
+/**
+ * Gets called whenever an audio file is loaded.
+ */
+function read_audio(event) {
+  let files = event.target.files;
+  if (files.length == 0) return;
+  let reader = new FileReader();
+  reader.readAsArrayBuffer(event.target.files[0]);
+  reader.onload = function(e) {
+    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+    context = new AudioContext();
+
+    // Decode audio into global music object
+    music = context.createBufferSource();
+    context.decodeAudioData(e.target.result, function(data) {
+      music.buffer = data;
+    }, function() {
+      // Error function
+      alert('Could not load selected audio file.');
+    });
+    music.connect(context.destination);
+  }
+}
+
+/**
+ * Gets called whenever a MIDI file is loaded.
+ */
+function read_midi(obj)  {
+  midi = obj; // Make MIDI object available globally
+  add_timing_info(midi);
+
+  // Loop through all the events and draw things
+  while (true) {
+    let e = next_event(midi);
+    if(e == undefined) {
+      break; // No more events, we're done!
+    } else {
+      handle_event(e); // Does the drawing
     }
-  });
+  }
 }
 
 /**
@@ -72,7 +108,6 @@ function next_event(midi) {
   }
 
   // Perhaps we need a bar event first?
-  console.log("Next bar at", next_bar_time);
   if (next_bar_time < next_track.event[0].time) {
     e = {type: BAR, time: next_bar_time};
     next_bar_time += 4 * midi.timeDivision;
@@ -95,14 +130,10 @@ function handle_event(e) {
   pixel_offset += deltaTime * pixelsPerSecond / (midi.timeDivision * (bpm / 60));
   time = e.time;
 
-  //console.log(time, pixel_offset, e);
-
   if (e.metaType == TEMPO_FIELD) {
     // Tempo is given as duration of one note in microseconds
     bpm = 60 * 1000000 / e.data;
-    console.log("New tempo set", bpm);
   } else if (e.type == BAR) {
-    console.log("Drawing bar at", e.time, pixel_offset);
     // Add a horizontal line to indicate a new bar
     let output = document.getElementById("output");
     let box = document.createElement("div");
@@ -110,7 +141,6 @@ function handle_event(e) {
     box.style.top = pixel_offset;
     output.appendChild(box);
   } else if (e.type == NOTE_ON) {
-    console.log("Drawing note at", e.time, pixel_offset);
     // Add a box to indicate a note
     let output = document.getElementById("output");
     let box = document.createElement("div");
@@ -124,12 +154,10 @@ function handle_event(e) {
  * (re-)Start the game.
  */
 function start_game() {
-  music = document.getElementById("music")
-  music.currentTime = 0;
+  music.start(0);
   running = true;
-  startTime = new Date().getTime();
+  startTime = context.getOutputTimestamp().performanceTime;
   requestAnimationFrame(scroll_events);
-  music.play();
 }
 
 /**
@@ -137,8 +165,7 @@ function start_game() {
  */
 function stop_game() {
   running = false;
-  document.getElementById("music").pause();
-  music.currentTime = 0;
+  music.stop();
   let output = document.getElementById("output");
   output.style.top = 0;
 }
@@ -148,7 +175,7 @@ function stop_game() {
  */
 function scroll_events() {
   let output = document.getElementById("output");
-  let now = new Date().getTime();
+  let now = context.getOutputTimestamp().performanceTime;
   let secondsElapsed = (now - startTime) / 1000;
   output.style.top = -pixelsPerSecond * secondsElapsed;
   if (running) {
@@ -160,10 +187,11 @@ function scroll_events() {
 <style>
   body {
     background-color: black;
+    color: white;
   }
   .note {
     position: absolute;
-    margin-top: 75px;
+    margin-top: 70px;
     background-color: white;
     width: 8.25%;
     left: 6.25%;
@@ -180,7 +208,7 @@ function scroll_events() {
     position: absolute;
     width: 100%;
     border-top: 1px solid #aaa;
-    margin-top: 75px;
+    margin-top: 70px;
   }
   #hitpoint {
     position:relative;
@@ -197,8 +225,9 @@ function scroll_events() {
 </head>
 <body width="100%">
   <audio src="sm.mp3" type="audio/mpeg" id="music" preload="auto"></audio>
-  <div style="position:absolute; width:200px; right:10px">
-    <input type="file" id="filereader"/>
+  <div style="position:absolute; width:700px; right:10px">
+    Audio: <input type="file" id="audiofile"/>
+    MIDI: <input type="file" id="midifile"/>
     <button onclick="start_game()">START</button>
     <button onclick="stop_game()">STOP</button>
   </div>

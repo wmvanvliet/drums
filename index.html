@@ -2,6 +2,7 @@
 <head>
 <script src="midi-parser-js-4.0.4/src/main.js"></script>
 <script>
+const TRACK_NAME = 3;
 const NOTE_ON = 9;
 const TEMPO_FIELD = 81;
 const BAR = 999;
@@ -130,9 +131,18 @@ function handle_event(e) {
   pixel_offset += deltaTime * pixelsPerSecond / (midi.timeDivision * (bpm / 60));
   time = e.time;
 
-  if (e.metaType == TEMPO_FIELD) {
+  if (e.metaType == TRACK_NAME) {
+    // Add a new DIV to the DOM containing the track name
+    let tracknames = document.getElementById("tracknames");
+    let trackname = document.createElement("div");
+    trackname.className = "track-name track" + e.track;
+    trackname.innerHTML = e.data;
+    tracknames.appendChild(trackname);
+
+  } else if (e.metaType == TEMPO_FIELD) {
     // Tempo is given as duration of one note in microseconds
     bpm = 60 * 1000000 / e.data;
+
   } else if (e.type == BAR) {
     // Add a horizontal line to indicate a new bar
     let output = document.getElementById("output");
@@ -140,6 +150,7 @@ function handle_event(e) {
     box.className = "beat";
     box.style.top = pixel_offset;
     output.appendChild(box);
+
   } else if (e.type == NOTE_ON) {
     // Add a box to indicate a note
     let output = document.getElementById("output");
@@ -154,6 +165,7 @@ function handle_event(e) {
  * (re-)Start the game.
  */
 function start_game() {
+  document.getElementById("controls").style.display = 'none';
   music.start(0);
   running = true;
   startTime = context.getOutputTimestamp().performanceTime;
@@ -188,27 +200,48 @@ function scroll_events() {
   body {
     background-color: black;
     color: white;
+    font-family: sans-serif;
+  }
+  .track-name {
+    position: absolute;
+    margin-top: 25px;
+    padding-top: 5px;
+    width: 8.25%;
+    left: 6.25%;
+    height: 22px;
+    text-align: center;
+    z-index: 10000;
   }
   .note {
     position: absolute;
-    margin-top: 70px;
+    margin-top: 60px;
     background-color: white;
     width: 8.25%;
     left: 6.25%;
     height: 15px;
+    z-index: 0;
   }
   .track2 { left:  6.25%; background-color: blue; }
   .track3 { left: 18.75%; background-color: red; }
   .track4 { left: 31.25%; background-color: green; }
-  .track5 { left: 43.75%; background-color: cyan; }
+  .track5 { left: 43.75%; background-color: cyan; color: black;}
   .track6 { left: 56.25%; background-color: orange; }
   .track7 { left: 68.75%; background-color: magenta; }
-  .track8 { left: 81.25%; background-color: white; }
+  .track8 { left: 81.25%; background-color: white; color: black;}
   .beat {
     position: absolute;
     width: 100%;
     border-top: 1px solid #aaa;
-    margin-top: 70px;
+    margin-top: 60px;
+    z-index: 0;
+  }
+  #header {
+    position: absolute;
+    top: 0px;
+    height: 50px;
+    width: 100%;
+    background-color: black;
+    z-index: 100000;
   }
   #hitpoint {
     position:relative;
@@ -219,19 +252,30 @@ function scroll_events() {
     position: absolute;
     top: 0px;
     width: 100%;
+    z-index: 0;
+  }
+  #tracknames {
+    margin-left: 10px;
+  }
+  #controls {
+    position: absolute;
+    width: 700px;
+    right: 10px;
   }
 </style>
 
 </head>
 <body width="100%">
-  <audio src="sm.mp3" type="audio/mpeg" id="music" preload="auto"></audio>
-  <div style="position:absolute; width:700px; right:10px">
-    Audio: <input type="file" id="audiofile"/>
-    MIDI: <input type="file" id="midifile"/>
-    <button onclick="start_game()">START</button>
-    <button onclick="stop_game()">STOP</button>
+  <div id="header">
+    <div id="controls">
+      Audio: <input type="file" id="audiofile"/>
+      MIDI: <input type="file" id="midifile"/>
+      <button onclick="start_game()">START</button>
+      <button onclick="stop_game()">STOP</button>
+    </div>
+    <div id="tracknames"></div>
+    <hr id="hitpoint"/>
   </div>
-  <hr id="hitpoint"/>
   <div id="output"></div>
 <body>
 </html>
